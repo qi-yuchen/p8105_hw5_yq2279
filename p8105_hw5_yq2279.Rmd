@@ -62,3 +62,153 @@ iris_na_filled = map_df(iris_with_missing, fill_na)
 ```
 
 # Problem 2
+
+### A dataframe containing all file names
+
+```{r}
+df_1 = tibble(
+  file_name = list.files("data", full.names = TRUE)
+)
+```
+
+### Read in data
+
+```{r}
+df_2 = df_1 %>% 
+  mutate(data = map(file_name, read_csv))
+```
+
+### Tidy the result
+
+```{r}
+df = df_2 %>%
+  unnest(data) %>% 
+  mutate(
+    file_name = str_replace(file_name, "data/", ""),
+    file_name = str_replace(file_name, "\\.csv", "")
+    ) %>% 
+  mutate(subject = file_name) %>% 
+  separate(file_name, into = c("arm", "ID"), sep = "_") %>% 
+  mutate(arm = as.factor(arm)) %>% 
+  select(-ID) %>% 
+  pivot_longer(week_1:week_8, names_to = "week", names_prefix = "week_" ,values_to = "observation") 
+```
+
+### Make a spaghetti plot
+
+```{r}
+df %>% 
+  ggplot(aes(x = week, y = observation, group = subject, color = arm)) +
+  geom_line() +
+  labs(
+    title = " Observations on each subject over time"
+  )
+```
+
+The observations from the experimental group are genarally larger than the control group.
+
+# Problem 3
+
+### beta1 = 0
+
+```{r}
+# one example
+n = 30
+x = rnorm(n)
+beta0 = 2
+var = 50
+sd = sqrt(var)
+
+beta1 = 0
+
+y = beta0 + beta1 * x + rnorm(n, 0, sd)
+
+ls_fit = lm(y ~ x)
+result = broom::tidy(ls_fit) %>% 
+  filter(term == "x") %>% 
+  janitor::clean_names() %>% 
+  select(estimate, p_value)
+
+# define the function for simulation
+sim_regression = function(n = 30, beta0 = 2, beta1, sd = sqrt(50)) {
+  
+  sim_data = tibble(
+    x = rnorm(n),
+    y = beta0 + beta1 * x + rnorm(n, 0, sd)
+  )
+  
+  ls_fit = lm(y ~ x, data = sim_data)
+  
+  broom::tidy(ls_fit) %>% 
+    filter(term == "x") %>% 
+    janitor::clean_names() %>% 
+    select(estimate, p_value)
+}
+
+# generate 10000 datasets
+sim_results = 
+  rerun(10000, sim_regression(beta1 = 0)) %>% 
+  bind_rows()
+
+knitr::kable(sim_results[1:10,])
+```
+
+### beta1 = 0:6
+
+```{r}
+sim_results = 
+  tibble(beta1 = c(0:6)) %>% 
+  mutate(
+    output_lists = map(.x = beta1, ~rerun(10000, sim_regression(beta1 = .x))),
+    est_p_dfs = map(output_lists, bind_rows)) %>% 
+  select(-output_lists) %>% 
+  unnest(est_p_dfs)
+
+knitr::kable(sim_results[1:10,])
+```
+
+### Make a plot showing the proportion of times the null was rejected
+
+```{r}
+# a function to decide rejecting the null or not
+h_test = function(p){
+  if (p < 0.05) {
+    return(1) # 1 means rejecting the null
+  } else {
+    return(0) # 0 means not rejecting
+  }
+}
+
+sim_results %>% 
+  mutate(reject = map_dbl(p_value, h_test)) %>% 
+  group_by(beta1) %>% 
+  summarise(proportion_reject = mean(reject)) %>% 
+  ggplot(aes(x = beta1, y = proportion_reject)) +
+  geom_point() + geom_line()
+```
+
+Power increases as effect size increases.
+
+### Make a plot showing the average estimate of beta1
+
+```{r}
+sim_results %>% 
+  group_by(beta1) %>% 
+  summarise(ave_est = mean(estimate)) %>% 
+  ggplot(aes(x = beta1, y = ave_est)) +
+  geom_point() + geom_line()
+```
+
+### Only in samples for which the null was rejected
+
+```{r}
+sim_results %>% 
+  mutate(reject = map_dbl(p_value, h_test)) %>%
+  filter(reject == 1) %>% 
+  group_by(beta1) %>% 
+  summarise(ave_est = mean(estimate)) %>% 
+  ggplot(aes(x = beta1, y = ave_est)) +
+  geom_point() + geom_line()
+```
+
+The sample average of beta1 across tests for which the null is rejected is not approximately equal to the true value of beta1.
