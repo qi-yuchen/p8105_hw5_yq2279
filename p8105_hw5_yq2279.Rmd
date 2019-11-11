@@ -219,4 +219,4 @@ df_plot %>%
 ```
 
 Generally, the sample average of beta1 across tests for which the null is rejected isn't approximately equal to the true value of bata1. For beta1 = 1:6, the average estimate is larger than the true value and gets closer to the true value as beta1 increases.  
-When the null beta1 = 0 is rejected, the beta1 estimate we get is significantly different from 0, so after excluding the estimate values that are more close to zero, the average estimate will be larger for beta1 = 1:6. As beta1 increases, it gets away from the null, so the average estimate from rejected cases becomes closer to the true beta1.
+When the null beta1 = 0 is rejected, the beta1 estimate we get is significantly different from 0, so after excluding the estimate values that are more close to zero, the average estimate will be larger for beta1 = 1:6. As beta1 increases, it gets away from the null and power increases, so the average estimate from rejected cases becomes closer to the true beta1.
